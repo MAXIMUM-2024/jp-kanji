@@ -5,24 +5,24 @@ import KanjiModel from './KanjiModel';
 import cors from 'cors';
 const NodeCache = require('node-cache');
 
-dotenv.config();  //Loads variables from the .env file (Hiding secrets with .gitignore)
-
 const app = express();
 const PORT = 5000; //LocalHost
 
 app.use(express.json()); //parsing JSON requests
+app.use(cors()); //We need to use CORS due to port number differences
+dotenv.config();  //Loads variables from the .env file (Hiding secrets with .gitignore)
 
 //Hide my mongoDB-URL
 const mongoDBURL = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@${process.env.CLUSTER_NAME}.${process.env.OTHER}.mongodb.net/KanjiDB`;
 
-//We need to use CORS due to port number differences
-app.use(cors());
-
 const cache = new NodeCache({ stdTTL: 0 }) // Cache doesn't expire
 
+  /** Connect to the DB using the mongoose library.
+   * (Core code)
+   */
 mongoose.connect(mongoDBURL)
   .then(() => {
-    console.log('Connected to: ', 
+    console.log('Connected to:', 
       mongoose.connection.getClient().db().databaseName);
 
     app.listen(PORT, () => {
@@ -33,12 +33,25 @@ mongoose.connect(mongoDBURL)
     console.log(error);
   });
 
+  /*
+  Check usage of indexes: (KanjiModel.ts Line 46 error)
+  Indexes: { _id_: [ [ '_id', 1 ] ], kanji_1: [ [ 'kanji', 1 ] ] }
+  
+  KanjiModel.collection.getIndexes()
+  .then(indexes => {
+    console.log('Indexes:', indexes);
+  })*/
+
+
+  /** GET request of a single character.
+   * Initially created to debug the MongoDB connection.
+   */
 app.get('/api/kanji/:character', async (req: Request, res: Response) => {
   const { character } = req.params;
 
   try {
     const kanjiData = await KanjiModel.findOne({ kanji: character }).select('wk_level -_id'); //Remove MongoDB ID.
-    console.log(kanjiData)
+    //console.log(kanjiData)
 
     if (kanjiData) {
       res.json(kanjiData);
@@ -51,14 +64,15 @@ app.get('/api/kanji/:character', async (req: Request, res: Response) => {
   }
 });
 
+  /** Improved version of the previous GET.
+   * Batched + Caching.
+   */
 app.post('/api/kanji/batch', async (req: Request, res: Response) => {
-  //Array of unique Kanjis from frontend
-  const kanjiList: string[] = req.body.kanjiList;  
-  //Final Result
-  const kanjiLevels: any = {};  
-  //Kanji not in the cache
-  const kanjiToFetch: string[] = [];
-
+  const kanjiList: string[] = req.body.kanjiList; //Unique kanjis sent in from the frontend.
+  //console.log(kanjiList) Inbound
+  const kanjiLevels: any = {}; //Final Result
+  // ^ WRONG TYPE?
+  const kanjiToFetch: string[] = []; //Kanji not in the cache
 
   for (const kanji of kanjiList) {
     const cachedData = cache.get(kanji);
@@ -84,6 +98,7 @@ app.post('/api/kanji/batch', async (req: Request, res: Response) => {
 
       //including both cached and fresh data
       res.json(kanjiLevels);
+      //console.log(kanjiLevels) Outbound
     } catch (error) {
       console.error(error);
       res.status(500).send('Error fetching Kanji data');

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import debounce from "lodash.debounce";
+import KanjiCard from "./kanji-card";
 
 const fetchKanjiData = async (kanjiList: string[]) => {
     try {
@@ -22,63 +23,69 @@ const fetchKanjiData = async (kanjiList: string[]) => {
         console.error('Error fetching Kanji data:', error);
         return null;
     }
-};
-
-const handleKanjiDataFetch = debounce(async (inputText: string, setKanjiData: React.Dispatch<React.SetStateAction<Map<string, { wk_level: number; count: number }>>>) => {
-    const kanjiRegex = /[一-龯々〆〤]/g;
-    const kanjiMatches = inputText.match(kanjiRegex);
-
-    if (!kanjiMatches) { //Possible null value error on kanjiMatches
-        setKanjiData(new Map());
-        return;
-    }
-
-    const kanjiList = Array.from( new Set(kanjiMatches) );  
-
-    const kanjiLevels = await fetchKanjiData(kanjiList);
-    if (kanjiLevels) {
-        const newKanjiData: Map<string, { wk_level: number; count: number }> = new Map();
-
-        kanjiMatches.forEach((kanji) => {
-            if (newKanjiData.has(kanji)) {
-                newKanjiData.get(kanji)!.count += 1;
-            } else {
-                newKanjiData.set(kanji, { wk_level: kanjiLevels[kanji] || -1, count: 1 });
-            }
-        });
-
-        const sortedKanjiData = Array.from(newKanjiData.entries()).sort(
-            ([, a], [, b]) => b.count - a.count
-        );
-
-        setKanjiData(new Map(sortedKanjiData));
-    }
-}, 200); // 200 ms debounce delay
+};    
 
 const Home = () => {
     const [inputText, setInputText] = useState("");
     const [kanjiData, setKanjiData] = useState<Map<string, { wk_level: number; count: number }>>(new Map());
+    const [isLoading, setIsLoading] = useState(false);
 
-    /* Session Storage when you click the about page */
-    useEffect(() => {
+    /* Session Storage so when you click the about page the text doesn't clear */
+    useEffect(() => { 
+        //Retrieve text from session storage
         const savedText = sessionStorage.getItem("inputText");
         if (savedText) {
             setInputText(savedText);
         }
-    }, []);
-
-    useEffect(() => {
+        //Set text to session storage
         if (inputText) {
             sessionStorage.setItem("inputText", inputText);
-        }
+        };
     }, [inputText]);
 
     const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newInputText = event.target.value;
         setInputText(newInputText);
 
+        handleKanjiDataFetch.cancel(); //Only process the last time the user updates the TextArea
+
         handleKanjiDataFetch(newInputText, setKanjiData);
+        //TODO: Prevent processing text if it's super large
     };
+
+    const handleKanjiDataFetch = debounce(async (inputText: string, setKanjiData: React.Dispatch<React.SetStateAction<Map<string, { wk_level: number; count: number }>>>) => {
+        const kanjiRegex = /[一-龯々〆〤]/g;
+        const kanjiMatches = inputText.match(kanjiRegex);
+
+        if (!kanjiMatches) { //Possible null value error on kanjiMatches
+            setKanjiData(new Map());
+            return;
+        }
+
+        const kanjiList = Array.from( new Set(kanjiMatches) ); //Set->Remove duplicates
+
+        setIsLoading(true);
+        const kanjiLevels = await fetchKanjiData(kanjiList);
+        setIsLoading(false);
+
+        if (kanjiLevels) {
+            const newKanjiData: Map<string, { wk_level: number; count: number }> = new Map();
+
+            kanjiMatches.forEach((kanji) => {
+                if (newKanjiData.has(kanji)) {
+                    newKanjiData.get(kanji)!.count += 1;
+                } else {
+                    newKanjiData.set(kanji, { wk_level: kanjiLevels[kanji] || -1, count: 1 });
+                }
+            });
+
+            const sortedKanjiData = Array.from(newKanjiData.entries()).sort(
+                ([, a], [, b]) => b.count - a.count
+            );
+
+            setKanjiData(new Map(sortedKanjiData));
+        }
+    }, 200); // 200 ms debounce delay
 
     return (
         <div className="min-h-screen mx-auto py-5 px-5 bg-gray-100">
@@ -98,11 +105,22 @@ const Home = () => {
                 <div className="w-1/2 p-3 bg-gray-200 flex flex-col rounded-md">
                     <p className="text-center text-2xl">Output</p>
                     <div className="flex flex-col flex-grow">
-                        <textarea
+                        {/*<textarea //OLD
                             className="mt-2 p-3 border rounded-md resize-none h-[88vh] text-2xl"
-                            value={Array.from(kanjiData.entries()).map(([kanji, data]) => `${kanji}: Level ${data.wk_level}, Count: ${data.count}`).join('\n')}
+                            value={ isLoading ? ( "Loading..." ) : (
+                                Array.from(kanjiData.entries()).map(([kanji, data]) => 
+                                    `${kanji}: Level ${data.wk_level}, Count: ${data.count}`).join('\n')
+                                )} //TODO: Update the way kanjis are displayed
                             readOnly
-                        ></textarea>
+                        ></textarea>*/}
+                        {isLoading ? ( <p className="text-xl">Loading...</p>
+                        ) : (
+                        <div className="mt-2 p-3 border rounded-md flex flex-wrap justify-start overflow-y-auto max-h-[88vh] scrollbar-hide">
+                            {Array.from(kanjiData.entries()).map(([kanji, data]) => (
+                            <KanjiCard key={kanji} kanji={kanji} wk_level={data.wk_level} count={data.count} />
+                            ))}
+                        </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -42,7 +42,9 @@ const kanjiSchema: Schema = new Schema<Kanji>({
   wk_radicals: { type: [String], required: false },            //Array of WaniKani radicals
 });
 
-kanjiSchema.index({ kanji: 1 }); //Create an index on the Kanji field to make lookups faster on MongoDB
+//Error: Warning: Duplicate schema index (Already added)
+//Bottom line was needed for the 1st time we ran the code.
+//kanjiSchema.index({ kanji: 1 }); //Create an index on the Kanji field to make lookups faster on MongoDB
 
 const KanjiModel = mongoose.model<Kanji>('Kanji', kanjiSchema, 'WaniKanji_Data');
 
