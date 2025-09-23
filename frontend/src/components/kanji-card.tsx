@@ -4,7 +4,7 @@ interface KanjiCardProps {
   count: number;
 }
 
-const KanjiCard: React.FC<KanjiCardProps> = ({ kanji, wk_level, count }) => {
+const KanjiCard = ({ kanji, wk_level, count }: KanjiCardProps) => {
   return (
     <div className="flex flex-col items-center justify-center bg-white p-4 m-2 rounded-md shadow-md w-40">
       <div className="text-4xl">{kanji}</div>
