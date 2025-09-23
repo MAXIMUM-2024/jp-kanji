@@ -70,8 +70,7 @@ app.get('/api/kanji/:character', async (req: Request, res: Response) => {
 app.post('/api/kanji/batch', async (req: Request, res: Response) => {
   const kanjiList: string[] = req.body.kanjiList; //Unique kanjis sent in from the frontend.
   //console.log(kanjiList) Inbound
-  const kanjiLevels: any = {}; //Final Result
-  // ^ WRONG TYPE?
+  const kanjiLevels: Record<string, number> = {}; //Final Result
   const kanjiToFetch: string[] = []; //Kanji not in the cache
 
   for (const kanji of kanjiList) {
@@ -86,7 +85,9 @@ app.post('/api/kanji/batch', async (req: Request, res: Response) => {
 
   if (kanjiToFetch.length > 0) {
     try {
-      const kanjiData = await KanjiModel.find({ kanji: { $in: kanjiToFetch } });
+      const kanjiData = await KanjiModel.find({ 
+        kanji: { $in: kanjiToFetch } 
+      }).exec();
 
       kanjiData.forEach((data: any) => {
         const wk_level = data.wk_level;
